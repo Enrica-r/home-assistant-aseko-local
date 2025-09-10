@@ -61,10 +61,10 @@ class LoggingHelper:
         if fh:
             line = (
                 f"{datetime.datetime.now().isoformat()} [{source}] "
-                f"FlowRates: ChlorPure={device.flow_rates.chlor}, "
-                f"pHMinus={device.flow_rates.ph_minus}, "
-                f"pHPlus={device.flow_rates.ph_plus}, "
-                f"FlocPlusC={device.flow_rates.floc}\n"
+                f"FlowRates: ChlorPure={device.flow_rate.chlor}, "
+                f"pHMinus={device.flow_rate.ph_minus}, "
+                f"pHPlus={device.flow_rate.ph_plus}, "
+                f"FlocPlusC={device.flow_rate.floc}\n"
             )
             await self.hass.async_add_executor_job(fh.write, line)
             await self.hass.async_add_executor_job(fh.flush)
