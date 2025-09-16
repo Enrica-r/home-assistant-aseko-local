@@ -140,7 +140,7 @@ if __name__ == "__main__":
     # Example: python3 hex_dump.py 06918724ff... 10
 
     if len(sys.argv) < 2:
-        print("Usage: python3 hex_dump.py <function> <hexstring> [byte_index]")
+        print("Usage: python3 hex_tools.py <function> <hexstring> [byte_index]")
         print("Functions: --table, --tablewrite, --byteinfo, --generateTest")
         sys.exit(1)
 
