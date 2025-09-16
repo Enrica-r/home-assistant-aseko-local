@@ -105,7 +105,7 @@ class AsekoDeviceServer:
             while True:
                 try:
                     # ✅ Read exactly MESSAGE_SIZE bytes per frame
-                    frame = await reader.readexactly(MESSAGE_SIZE)
+                    frame = await reader.readexactly(120)
 
                     _LOGGER.info(
                         "Frame received from %s (%d bytes):\n%s",
