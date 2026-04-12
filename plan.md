@@ -37,6 +37,8 @@ Frame structure:
 | Mirror forwarder | Forward raw bytes unchanged | Aseko Cloud understands the text format itself |
 | Forwarder port v7 | `pool.aseko.com:47524` | Existing binary-frame port (unchanged) |
 | Forwarder port v8 | `pool.aseko.com:51050` | New text-frame port for fw v8 |
+| Port config (user) | No extra options flow fields | Server auto-routes by `FrameType`; ports defined in `const.py` for easy bugfix releases |
+| Two devices, mixed fw | Single receiving port on HA side | Each device has its own TCP connection — no data mixing possible; `_sync_frame` operates per-connection |
 
 ---
 
