@@ -65,10 +65,19 @@ No decoding, no new entities.
    - forward v7 frames to `pool.aseko.com:47524` (unchanged)
    - distinguish by `FrameType` passed alongside the bytes
 
-3. `const.py` — new constant:
+3. `const.py` — two constants (replaces the single user-configurable port):
    ```python
-   DEFAULT_FORWARDER_PORT_V8 = 51050
+   DEFAULT_FORWARDER_PORT_V7 = 47524   # rename existing DEFAULT_FORWARDER_PORT
+   DEFAULT_FORWARDER_PORT_V8 = 51050   # new
    ```
+
+4. `config_flow.py` — remove `forwarder_port` from the options flow:
+   - Remove the `forwarder_port` field from `OptionsFlowHandler`
+   - Remove `CONF_FORWARDER_PORT` from the options schema
+   - The port is no longer stored in config entry options; it is resolved at runtime from `FrameType`
+   - **Migration:** existing config entries that have a stored `forwarder_port` value must be ignored gracefully (the field is simply no longer read)
+
+5. `translations/*.json` — remove `forwarder_port` label from all language files (`en`, `de`, `cs`, `fr`)
 
 **No decoding, no new entities, no tests required for this step.**
 
@@ -202,7 +211,12 @@ guards need to be added in `sensor.py` — same pattern as existing `device_type
 |---|---|---|
 | `custom_components/aseko_local/aseko_server.py` | Frame detection + v8 logging (pre-release) → full refactor later | 1 / 3 |
 | `custom_components/aseko_local/mirror_forwarder.py` | Port routing v7→47524, v8→51050 | 1 |
-| `custom_components/aseko_local/const.py` | `DEFAULT_FORWARDER_PORT_V8 = 51050` | 1 |
+| `custom_components/aseko_local/const.py` | Add `DEFAULT_FORWARDER_PORT_V7/V8`; rename existing constant | 1 |
+| `custom_components/aseko_local/config_flow.py` | Remove `forwarder_port` field from options flow | 1 |
+| `custom_components/aseko_local/translations/en.json` | Remove `forwarder_port` label | 1 |
+| `custom_components/aseko_local/translations/de.json` | Remove `forwarder_port` label | 1 |
+| `custom_components/aseko_local/translations/cs.json` | Remove `forwarder_port` label | 1 |
+| `custom_components/aseko_local/translations/fr.json` | Remove `forwarder_port` label | 1 |
 | `custom_components/aseko_local/aseko_decoder_v8.py` | NEW | 4 |
 | `tests/test_aseko_decoder_v8.py` | NEW | 5 |
 | `custom_components/aseko_local/aseko_data.py` | No changes expected | — |
