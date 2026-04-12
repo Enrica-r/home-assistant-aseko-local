@@ -44,7 +44,7 @@ Frame structure:
 
 ## Step 1 — Pre-Release: Logging & Forwarding for fekberg
 
-**Status:** ⬜ Todo
+**Status:** ✅ Done
 
 **Goal:** Build a minimal release that fekberg installs manually.
 The server receives v8 text frames, logs them as WARNING (visible without debug mode)

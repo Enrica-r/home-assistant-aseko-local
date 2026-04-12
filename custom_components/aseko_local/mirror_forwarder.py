@@ -63,42 +63,50 @@ class AsekoCloudMirror:
                 _LOGGER.error("Mirror queue overflow; frame dropped.")
 
     async def _worker(self) -> None:
-        """Loop connection with reconnect/backoff and queue consumption."""
+        """Loop: wait for a frame, connect lazily, send, reconnect on errors."""
 
         backoff = 1.0
         while True:
             try:
-                # Ensure connection
-                if self._writer is None:
-                    try:
-                        reader, writer = await asyncio.open_connection(
-                            self._host, self._port
-                        )
-                        self._writer = writer
-                        self._last_connect = time.time()
+                # Wait for the next frame — no connection is opened until data arrives
+                frame = await self._queue.get()
 
-                        self._connected_event.set()
-                        backoff = 1.0
-                        _LOGGER.debug(
-                            "Mirror connected to %s:%s", self._host, self._port
-                        )
-                    except Exception as e:
-                        _LOGGER.error("Mirror connect failed: %s", e)
-                        await asyncio.sleep(min(backoff, 10.0))
-                        backoff = min(backoff * 2.0, 10.0)
-                        continue
-
-                # Check reconnect interval
-                if time.time() - self._last_connect > self._reconnect_interval:
+                # Reconnect interval: force fresh connection periodically
+                if (
+                    self._writer is not None
+                    and time.time() - self._last_connect > self._reconnect_interval
+                ):
                     _LOGGER.debug(
                         "Mirror reconnect interval reached (%ds), reconnecting...",
                         self._reconnect_interval,
                     )
                     await self._close_writer()
-                    continue  # next loop will reconnect
 
-                # Get next frame to send
-                frame = await self._queue.get()
+                # Connect if not already connected
+                if self._writer is None:
+                    try:
+                        _reader, writer = await asyncio.open_connection(
+                            self._host, self._port
+                        )
+                        self._writer = writer
+                        self._last_connect = time.time()
+                        self._connected_event.set()
+                        backoff = 1.0
+                        _LOGGER.debug(
+                            "Mirror connected to %s:%d", self._host, self._port
+                        )
+                    except Exception as e:
+                        _LOGGER.error("Mirror connect failed: %s", e)
+                        # Re-enqueue the frame so it is not lost
+                        try:
+                            self._queue.put_nowait(frame)
+                        except Exception:
+                            pass
+                        await asyncio.sleep(min(backoff, 10.0))
+                        backoff = min(backoff * 2.0, 10.0)
+                        continue
+
+                # Send the frame
                 try:
                     self._writer.write(frame)
                     _LOGGER.debug(
@@ -107,10 +115,11 @@ class AsekoCloudMirror:
                         frame.hex(" ", 1),
                     )
                     await self._writer.drain()
+                    backoff = 1.0
                 except Exception as e:
                     _LOGGER.error("Mirror write failed: %s", e)
                     await self._close_writer()
-                    # requeue the frame to try again
+                    # Re-enqueue the frame so it is not lost
                     try:
                         self._queue.put_nowait(frame)
                     except Exception:
