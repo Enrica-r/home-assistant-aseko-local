@@ -170,10 +170,15 @@ class AsekoDeviceServer:
 
                 # v8 text frame: log, forward, skip decode
                 if frame_type == FrameType.V8:
+                    try:
+                        frame_text = frame.decode("ascii", errors="replace")
+                    except Exception:
+                        frame_text = repr(frame)
                     _LOGGER.warning(
-                        "v8 frame received from %s (%d bytes) — v8 decoding not yet supported; forwarding only.",
+                        "v8 frame received from %s (%d bytes) — v8 decoding not yet supported; forwarding only.\n%s",
                         addr,
                         len(frame),
+                        frame_text,
                     )
                     await self._call_forward_v8_cb(frame)
                     continue
@@ -285,9 +290,16 @@ class AsekoDeviceServer:
         brace_pos = initial.find(b"{v1 ")
         if brace_pos >= 0:
             if brace_pos > 0:
-                _LOGGER.warning(
-                    "v8 frame shifted by %d bytes — discarding prefix", brace_pos
-                )
+                prefix = initial[:brace_pos]
+                if all(b in b"\r\n\t\x00" for b in prefix):
+                    # Normal frame separator (e.g. \n between frames) — not a real shift
+                    _LOGGER.debug(
+                        "v8 frame: skipping %d separator byte(s) before '{'", brace_pos
+                    )
+                else:
+                    _LOGGER.warning(
+                        "v8 frame shifted by %d bytes — discarding prefix", brace_pos
+                    )
             v8_data = initial[brace_pos:]
             try:
                 rest = await asyncio.wait_for(

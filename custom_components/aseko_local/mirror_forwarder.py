@@ -24,7 +24,9 @@ class AsekoCloudMirror:
         self._port = int(cloud_port)
         self._queue: "asyncio.Queue[bytes]" = asyncio.Queue(maxsize=1000)
         self._task: Optional[asyncio.Task] = None
+        self._read_task: Optional[asyncio.Task] = None
         self._writer: Optional[asyncio.StreamWriter] = None
+        self._reader: Optional[asyncio.StreamReader] = None
         self._connected_event = asyncio.Event()
         self._last_connect: float = 0.0
         self._reconnect_interval = reconnect_interval
@@ -42,6 +44,13 @@ class AsekoCloudMirror:
             self._task.cancel()
             await self._task
             self._task = None
+        if self._read_task:
+            self._read_task.cancel()
+            try:
+                await self._read_task
+            except asyncio.CancelledError:
+                pass
+            self._read_task = None
         await self._close_writer()
         _LOGGER.debug("Mirror worker stopped.")
 
@@ -85,15 +94,23 @@ class AsekoCloudMirror:
                 # Connect if not already connected
                 if self._writer is None:
                     try:
-                        _reader, writer = await asyncio.open_connection(
+                        reader, writer = await asyncio.open_connection(
                             self._host, self._port
                         )
                         self._writer = writer
+                        self._reader = reader
                         self._last_connect = time.time()
                         self._connected_event.set()
                         backoff = 1.0
                         _LOGGER.debug(
                             "Mirror connected to %s:%d", self._host, self._port
+                        )
+                        # Start background task to drain and log cloud responses
+                        if self._read_task:
+                            self._read_task.cancel()
+                        self._read_task = asyncio.create_task(
+                            self._drain_cloud_reader(reader),
+                            name="AsekoCloudMirrorReader",
                         )
                     except Exception as e:
                         _LOGGER.error("Mirror connect failed: %s", e)
@@ -132,6 +149,26 @@ class AsekoCloudMirror:
                 _LOGGER.error("Mirror worker loop error.", exc_info=True)
                 await asyncio.sleep(0.1)
 
+    async def _drain_cloud_reader(self, reader: asyncio.StreamReader) -> None:
+        """Read and log any data the cloud server sends back."""
+        try:
+            while True:
+                data = await reader.read(4096)
+                if not data:
+                    _LOGGER.debug("Mirror: cloud server closed the connection.")
+                    break
+                try:
+                    text = data.decode("ascii", errors="replace")
+                except Exception:
+                    text = data.hex(" ", 1)
+                _LOGGER.debug(
+                    "Mirror: cloud server sent %d bytes back:\n%s", len(data), text
+                )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            _LOGGER.debug("Mirror reader closed.", exc_info=False)
+
     async def _close_writer(self) -> None:
         if self._writer:
             try:
@@ -144,5 +181,6 @@ class AsekoCloudMirror:
                 pass
             finally:
                 self._writer = None
+                self._reader = None
                 self._connected_event.clear()
                 _LOGGER.debug("Mirror connection closed.")
