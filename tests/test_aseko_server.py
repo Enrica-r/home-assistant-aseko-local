@@ -157,14 +157,14 @@ async def test_issue_61_shifted_frame(monkeypatch) -> None:
 # Minimal synthetic v8 frame: starts with '{v1 ', ends with '}'
 V8_INITIAL = b"{v1 12345678" + b" " * 108  # 120 bytes, starts with '{v1 '
 assert len(V8_INITIAL) == 120
-V8_REST = b" ins: 0000 outs: 0000 crc16: ABCD}"  # read by readuntil(b'}')
-V8_FULL_FRAME = V8_INITIAL + V8_REST
+V8_REST = b" ins: 0000 outs: 0000 crc16: ABCD}\n"  # read by readuntil(b'\n'), includes \n
+V8_FULL_FRAME = V8_INITIAL + V8_REST  # exact bytes the device sends
 
 # Shifted v8 frame: 3 garbage prefix bytes before the '{v1 ' signature
 V8_SHIFTED_PREFIX = b"\x00\x00\x00"
 V8_SHIFTED_INITIAL = V8_SHIFTED_PREFIX + b"{v1 12345678" + b" " * 105  # 120 bytes
 assert len(V8_SHIFTED_INITIAL) == 120
-V8_SHIFTED_FULL_FRAME = V8_SHIFTED_INITIAL[3:] + V8_REST  # starts at '{'
+V8_SHIFTED_FULL_FRAME = V8_SHIFTED_INITIAL[3:] + V8_REST  # starts at '{', exact bytes
 
 
 @pytest.mark.asyncio

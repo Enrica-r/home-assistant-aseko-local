@@ -303,7 +303,7 @@ class AsekoDeviceServer:
             v8_data = initial[brace_pos:]
             try:
                 rest = await asyncio.wait_for(
-                    reader.readuntil(b"}"), timeout=READ_TIMEOUT
+                    reader.readuntil(b"\n"), timeout=READ_TIMEOUT
                 )
                 return v8_data + rest, brace_pos, FrameType.V8
             except asyncio.IncompleteReadError as exc:
