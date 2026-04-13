@@ -12,7 +12,7 @@ Aseko devices with firmware v8 no longer send a 120-byte binary block.
 Instead they send a human-readable text frame (example from Issue #49, ASIN AQUA NET):
 
 ```
-{v1 110203680 804 0 27 ins: 314 -500 -500 -500 0 0 0 0 1 -500 -500 -500 0 24 6 29 21 40 0 ains: 708 708 774 7790 0 0 779 779 0 0 0 0 0 0 0 0 outs: 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 areqs: 74 74 4 5 0 36 36 0 0 0 6 0 36 0 45 0 255 2 2 10 0 15 0 0 0 0 reqs: 0 0 0 0 0 0 0 24 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 10 10 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 fncs: 0 0 3 0 0 0 2 0 mods: 2 0 0 1 0 0 0 0 flags: 2 0 0 0 0 0 0 0 crc16: C3C8}
+{v1 123456789 804 0 27 ins: 314 -500 -500 -500 0 0 0 0 1 -500 -500 -500 0 24 6 29 21 40 0 ains: 708 708 774 7790 0 0 779 779 0 0 0 0 0 0 0 0 outs: 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 areqs: 74 74 4 5 0 36 36 0 0 0 6 0 36 0 45 0 255 2 2 10 0 15 0 0 0 0 reqs: 0 0 0 0 0 0 0 24 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 10 10 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 fncs: 0 0 3 0 0 0 2 0 mods: 2 0 0 1 0 0 0 0 flags: 2 0 0 0 0 0 0 0 crc16: C3C8}
 ```
 
 Frame structure:
@@ -177,7 +177,7 @@ class AsekoV8Decoder:
 Fixture: frame from Issue #49 (above).
 
 Minimum assertions:
-- `serial_number == 110203680`
+- `serial_number == 123456789`
 - `device_type == AsekoDeviceType.NET`
 - All mapped fields match their expected values
 

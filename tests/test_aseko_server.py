@@ -166,16 +166,26 @@ V8_SHIFTED_INITIAL = V8_SHIFTED_PREFIX + b"{v1 12345678" + b" " * 105  # 120 byt
 assert len(V8_SHIFTED_INITIAL) == 120
 V8_SHIFTED_FULL_FRAME = V8_SHIFTED_INITIAL[3:] + V8_REST  # starts at '{', exact bytes
 
+V8_VALID_FRAME = (
+    b"{v1 123456789 804 0 27 ins: 188 -500 -500 -500 0 0 0 0 1 -500 -500 -500 "
+    b"0 25 1 24 14 49 0 ains: 655 655 817 8220 0 0 822 822 0 0 0 0 0 0 0 0 "
+    b"outs: 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 "
+    b"areqs: 74 74 4 5 0 36 36 0 0 0 6 0 36 0 45 0 255 2 2 10 0 15 0 0 0 0 "
+    b"reqs: 0 0 0 0 0 0 0 24 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 "
+    b"0 10 10 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 "
+    b"fncs: 0 0 3 0 0 0 2 0 mods: 2 0 0 1 0 0 0 0 flags: 2 0 0 0 0 0 0 0 crc16: DD41}\n"
+)
+
 
 @pytest.mark.asyncio
-async def test_v8_frame_detected_not_decoded() -> None:
-    """v8 frames must be detected, logged as WARNING, and NOT passed to on_data."""
+async def test_v8_frame_detected_and_decoded() -> None:
+    """v8 frames must be detected, forwarded, and decoded."""
 
     on_data_called = {}
     v8_forwarded = {}
 
     async def on_data(device: AsekoDevice) -> None:
-        on_data_called["hit"] = True
+        on_data_called["device"] = device
 
     async def v8_forward_cb(frame: bytes) -> None:
         v8_forwarded["frame"] = frame
@@ -185,16 +195,17 @@ async def test_v8_frame_detected_not_decoded() -> None:
 
     reader = asyncio.StreamReader()
     writer = DummyWriter("127.0.0.1", 12350)
-    reader.feed_data(V8_FULL_FRAME)
+    reader.feed_data(V8_VALID_FRAME)
     reader.feed_eof()
     await server._handle_client(reader, writer)
 
-    # on_data must NOT be called for a v8 frame
-    assert "hit" not in on_data_called
+    # on_data must be called for a v8 frame
+    assert "device" in on_data_called
+    assert on_data_called["device"].serial_number == 123456789
 
     # v8 forward callback must have received the full frame
     assert "frame" in v8_forwarded
-    assert v8_forwarded["frame"] == V8_FULL_FRAME
+    assert v8_forwarded["frame"] == V8_VALID_FRAME
 
 
 @pytest.mark.asyncio

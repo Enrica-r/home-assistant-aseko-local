@@ -8,6 +8,7 @@ from typing import ClassVar, Optional, Any
 
 from .aseko_data import AsekoDevice
 from .aseko_decoder import AsekoDecoder
+from .aseko_decoder_v8 import AsekoV8Decoder
 from .const import (
     DEFAULT_BINDING_ADDRESS,
     DEFAULT_BINDING_PORT,
@@ -168,19 +169,37 @@ class AsekoDeviceServer:
                     )
                     break
 
-                # v8 text frame: log, forward, skip decode
+                # v8 text frame: log, forward, decode via v8 decoder
                 if frame_type == FrameType.V8:
                     try:
                         frame_text = frame.decode("ascii", errors="replace")
                     except Exception:
                         frame_text = repr(frame)
-                    _LOGGER.warning(
-                        "v8 frame received from %s (%d bytes) — v8 decoding not yet supported; forwarding only.\n%s",
+                    await self._call_forward_v8_cb(frame)
+                    try:
+                        device = AsekoV8Decoder.decode(frame)
+                    except ValueError as e:
+                        _LOGGER.error(
+                            "Invalid v8 frame from %s: %s → closing connection",
+                            addr,
+                            e,
+                        )
+                        break
+                    except Exception:
+                        _LOGGER.error(
+                            "Decoding error for v8 data from %s → closing connection",
+                            addr,
+                        )
+                        break
+
+                    _LOGGER.debug(
+                        "Decoded v8 data from %s (%d bytes): %s\n%s",
                         addr,
                         len(frame),
+                        device,
                         frame_text,
                     )
-                    await self._call_forward_v8_cb(frame)
+                    await self._maybe_call_on_data(device)
                     continue
 
                 # BINARY path — frame is already rewound by _sync_frame
