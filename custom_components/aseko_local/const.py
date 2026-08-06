@@ -1,5 +1,7 @@
 """Constants for Aseko Local integration."""
 
+from datetime import timedelta
+
 DOMAIN = "aseko_local"
 MANUFACTURER = "Aseko"
 
@@ -11,6 +13,7 @@ DEFAULT_BINDING_PORT = 47524
 DEFAULT_FORWARDER_HOST = "pool.aseko.com"
 DEFAULT_FORWARDER_PORT_V7 = 47524
 DEFAULT_FORWARDER_PORT_V8 = 51050
+DEFAULT_DEV_FORWARD_PORT = 47524
 
 # Year offset and message sizes
 YEAR_OFFSET = 2000
@@ -54,3 +57,15 @@ CONF_ENABLE_RAW_LOGGING = "enable_raw_logging"
 CONF_FORWARDER_ENABLED = "forwarder_enabled"
 CONF_FORWARDER_HOST = "forwarder_host"
 CONF_FORWARDER_PORT = "forwarder_port"
+
+# Log dumper option (Issue #145)
+CONF_LOG_DUMPER_ENABLED = "log_dumper_enabled"
+LOG_DUMPER_RETENTION = timedelta(days=2)
+LOG_DUMPER_NOTIFY_AFTER = timedelta(days=5)
+
+# Dev-server forwarding option (Issue #145, opt-in)
+CONF_DEV_FORWARD_ENABLED = "dev_forward_enabled"
+CONF_DEV_FORWARD_HOST = "dev_forward_host"
+CONF_DEV_FORWARD_PORT = "dev_forward_port"
+CONF_DEV_FORWARD_UNTIL = "dev_forward_until"
+DEV_FORWARD_TIMEOUT = timedelta(hours=24)

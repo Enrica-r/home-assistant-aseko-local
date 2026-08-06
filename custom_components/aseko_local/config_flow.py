@@ -10,14 +10,22 @@ from homeassistant.config_entries import ConfigFlow, OptionsFlow, ConfigFlowResu
 from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.util import dt as dt_util
 
 from .const import (
     DOMAIN,
     DEFAULT_BINDING_ADDRESS,
     DEFAULT_BINDING_PORT,
     DEFAULT_FORWARDER_HOST,
+    DEFAULT_DEV_FORWARD_PORT,
+    DEV_FORWARD_TIMEOUT,
     CONF_FORWARDER_ENABLED,
     CONF_FORWARDER_HOST,
+    CONF_LOG_DUMPER_ENABLED,
+    CONF_DEV_FORWARD_ENABLED,
+    CONF_DEV_FORWARD_HOST,
+    CONF_DEV_FORWARD_PORT,
+    CONF_DEV_FORWARD_UNTIL,
 )
 from .aseko_server import AsekoDeviceServer, ServerConnectionError
 
@@ -144,36 +152,70 @@ class AsekoLocalOptionsFlowHandler(OptionsFlow):
     async def async_step_options_init(self, user_input=None):
         errors = {}
         config_entry = self.hass.config_entries.async_get_entry(self._entry_id)
+        if config_entry is None:
+            return self.async_abort(reason="missing_entry")
 
         if user_input is not None:
-            # 🛑 Server hart stoppen, bevor neu geladen wird
-            await AsekoDeviceServer.remove_all()
+            # Merge with existing options so keys not present in the schema
+            # (e.g. the dev-forward expiry timestamp) survive the save.
+            data = {**config_entry.options, **user_input}
 
-            # save the options
-            entry = self.async_create_entry(title="", data=user_input)
+            if data.get(CONF_DEV_FORWARD_ENABLED):
+                if not data.get(CONF_DEV_FORWARD_HOST):
+                    errors["base"] = "dev_forward_host_missing"
+                else:
+                    # Hard stop: delivery auto-expires 24 h after activation.
+                    data[CONF_DEV_FORWARD_UNTIL] = (
+                        dt_util.now() + DEV_FORWARD_TIMEOUT
+                    ).isoformat()
+            else:
+                data.pop(CONF_DEV_FORWARD_UNTIL, None)
 
-            # Reload integration to apply new options
-            self.hass.async_create_task(
-                self.hass.config_entries.async_reload(config_entry.entry_id)
-            )
-            return entry
+            if not errors:
+                # 🛑 Server hart stoppen, bevor neu geladen wird
+                await AsekoDeviceServer.remove_all()
+
+                # save the options
+                entry = self.async_create_entry(title="", data=data)
+
+                # Reload integration to apply new options
+                self.hass.async_create_task(
+                    self.hass.config_entries.async_reload(config_entry.entry_id)
+                )
+                return entry
+
+        # Pre-fill the form with the current values (including any values the
+        # user just submitted that failed validation).
+        current = {**config_entry.options, **(user_input or {})}
 
         options_schema = vol.Schema(
             {
                 vol.Optional(
                     CONF_FORWARDER_ENABLED,
-                    default=config_entry.options.get(CONF_FORWARDER_ENABLED, False),
+                    default=current.get(CONF_FORWARDER_ENABLED, False),
                 ): bool,
                 vol.Optional(
                     CONF_FORWARDER_HOST,
-                    default=config_entry.options.get(
-                        CONF_FORWARDER_HOST, DEFAULT_FORWARDER_HOST
-                    ),
+                    default=current.get(CONF_FORWARDER_HOST, DEFAULT_FORWARDER_HOST),
                 ): str,
-                # vol.Optional(
-                #     CONF_ENABLE_RAW_LOGGING,
-                #     default=config_entry.options.get(CONF_ENABLE_RAW_LOGGING, False),
-                # ): bool,
+                vol.Optional(
+                    CONF_LOG_DUMPER_ENABLED,
+                    default=current.get(CONF_LOG_DUMPER_ENABLED, False),
+                ): bool,
+                vol.Optional(
+                    CONF_DEV_FORWARD_ENABLED,
+                    default=current.get(CONF_DEV_FORWARD_ENABLED, False),
+                ): bool,
+                vol.Optional(
+                    CONF_DEV_FORWARD_HOST,
+                    default=current.get(CONF_DEV_FORWARD_HOST, ""),
+                ): str,
+                vol.Optional(
+                    CONF_DEV_FORWARD_PORT,
+                    default=current.get(
+                        CONF_DEV_FORWARD_PORT, DEFAULT_DEV_FORWARD_PORT
+                    ),
+                ): int,
             }
         )
 

@@ -1,15 +1,31 @@
 """Test Aseko Local setup process."""
 
+from datetime import timedelta
+
 import pytest
 from homeassistant.config_entries import ConfigEntryState
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from homeassistant.util import dt as dt_util
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_fire_time_changed,
+)
 from typing import Any
 
 from custom_components.aseko_local import (
+    _multi_enqueue,
     async_setup_entry,
+    async_unload_entry,
 )
 from custom_components.aseko_local.aseko_data import AsekoDevice
+from custom_components.aseko_local.aseko_dumper import AsekoFrameDumper
 from custom_components.aseko_local.const import (
+    CONF_DEV_FORWARD_ENABLED,
+    CONF_DEV_FORWARD_HOST,
+    CONF_DEV_FORWARD_PORT,
+    CONF_DEV_FORWARD_UNTIL,
+    CONF_FORWARDER_ENABLED,
+    CONF_FORWARDER_HOST,
+    CONF_LOG_DUMPER_ENABLED,
     DOMAIN,
 )
 
@@ -38,6 +54,7 @@ async def test_setup_unload_entry(hass, bypass_get_data, api_server_running) -> 
     # them to be. Because we have patched the AsekoLocalDataUpdateCoordinator.async_get_data
     # call, no code from custom_components/aseko_local/aseko_server.py actually runs.
     assert await async_setup_entry(hass, config_entry)
+    assert await async_unload_entry(hass, config_entry)
 
     class DummyWriter:
         def __init__(self) -> None:
@@ -299,3 +316,180 @@ async def test_coordinator_multiple_listeners(hass) -> None:
 
     unsub_a()
     unsub_b()
+
+
+# ---------------------------------------------------------------------------
+# Issue #145 — log dumper + dev-server forwarding wiring
+# ---------------------------------------------------------------------------
+
+
+async def test_setup_enables_dumper_when_option_set(
+    hass, bypass_get_data, api_server_running, monkeypatch, tmp_path
+) -> None:
+    """With the log-dumper option on, the dumper singleton is enabled."""
+    monkeypatch.setenv("ASEKO_DUMP_DIR", str(tmp_path))
+    AsekoFrameDumper.reset()
+    config_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=MOCK_CONFIG,
+        entry_id="test_dumper",
+        options={CONF_LOG_DUMPER_ENABLED: True},
+        state=ConfigEntryState.LOADED,
+    )
+    config_entry.add_to_hass(hass)
+    assert await async_setup_entry(hass, config_entry)
+    try:
+        assert AsekoFrameDumper.get().enabled is True
+    finally:
+        await async_unload_entry(hass, config_entry)
+        AsekoFrameDumper.reset()
+
+
+async def test_setup_leaves_dumper_disabled_without_option(
+    hass, bypass_get_data, api_server_running, monkeypatch, tmp_path
+) -> None:
+    """Without the option, the dumper stays disabled."""
+    monkeypatch.setenv("ASEKO_DUMP_DIR", str(tmp_path))
+    AsekoFrameDumper.reset()
+    config_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=MOCK_CONFIG,
+        entry_id="test_dumper_off",
+        options={},
+        state=ConfigEntryState.LOADED,
+    )
+    config_entry.add_to_hass(hass)
+    assert await async_setup_entry(hass, config_entry)
+    try:
+        assert AsekoFrameDumper.get().enabled is False
+    finally:
+        await async_unload_entry(hass, config_entry)
+        AsekoFrameDumper.reset()
+
+
+async def test_setup_resets_expired_dev_forward(
+    hass, bypass_get_data, api_server_running
+) -> None:
+    """An expired dev-forward option is reset to disabled on setup."""
+    past = (dt_util.utcnow() - timedelta(hours=1)).isoformat()
+    config_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=MOCK_CONFIG,
+        entry_id="test_dev_expired",
+        options={
+            CONF_DEV_FORWARD_ENABLED: True,
+            CONF_DEV_FORWARD_HOST: "dev.example.com",
+            CONF_DEV_FORWARD_PORT: 47524,
+            CONF_DEV_FORWARD_UNTIL: past,
+        },
+        state=ConfigEntryState.LOADED,
+    )
+    config_entry.add_to_hass(hass)
+    assert await async_setup_entry(hass, config_entry)
+    try:
+        assert config_entry.options.get(CONF_DEV_FORWARD_ENABLED) is False
+        assert config_entry.options.get(CONF_DEV_FORWARD_UNTIL) is None
+        assert config_entry.runtime_data.dev_mirror is None
+    finally:
+        await async_unload_entry(hass, config_entry)
+
+
+async def test_setup_starts_dev_mirror_when_enabled(
+    hass, bypass_get_data, api_server_running, monkeypatch
+) -> None:
+    """A valid, unexpired dev-forward option starts the dev mirror."""
+    future = (dt_util.utcnow() + timedelta(hours=23)).isoformat()
+    started: list[Any] = []
+
+    async def fake_start(self) -> None:
+        started.append(self)
+
+    monkeypatch.setattr(AsekoCloudMirror, "start", fake_start)
+    config_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=MOCK_CONFIG,
+        entry_id="test_dev_active",
+        options={
+            CONF_DEV_FORWARD_ENABLED: True,
+            CONF_DEV_FORWARD_HOST: "dev.example.com",
+            CONF_DEV_FORWARD_PORT: 47524,
+            CONF_DEV_FORWARD_UNTIL: future,
+        },
+        state=ConfigEntryState.LOADED,
+    )
+    config_entry.add_to_hass(hass)
+    assert await async_setup_entry(hass, config_entry)
+    try:
+        assert len(started) == 1
+        assert config_entry.runtime_data.dev_mirror is not None
+    finally:
+        await async_unload_entry(hass, config_entry)
+
+
+async def test_multi_enqueue_isolates_failing_target() -> None:
+    """A failing target must not stop other targets from receiving frames."""
+    received: list[bytes] = []
+
+    async def good(frame: bytes) -> None:
+        received.append(frame)
+
+    def bad(frame: bytes) -> None:
+        raise RuntimeError("dev mirror unreachable")
+
+    combined = _multi_enqueue([bad, good])
+    await combined(b"frame")
+    assert received == [b"frame"]
+
+
+async def test_dev_forward_expiry_keeps_cloud_mirror_running(
+    hass, bypass_get_data, api_server_running, monkeypatch, tmp_path
+) -> None:
+    """24 h auto-expiry stops only the dev mirror; the cloud mirror keeps going."""
+    monkeypatch.setenv("ASEKO_DUMP_DIR", str(tmp_path))
+    AsekoFrameDumper.reset()
+
+    async def fake_start(self) -> None:
+        pass
+
+    async def fake_stop(self) -> None:
+        pass
+
+    monkeypatch.setattr(AsekoCloudMirror, "start", fake_start)
+    monkeypatch.setattr(AsekoCloudMirror, "stop", fake_stop)
+
+    future = (dt_util.utcnow() + timedelta(hours=23)).isoformat()
+    config_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=MOCK_CONFIG,
+        entry_id="test_dev_expiry_keeps_cloud",
+        options={
+            CONF_FORWARDER_ENABLED: True,
+            CONF_FORWARDER_HOST: "pool.aseko.com",
+            CONF_DEV_FORWARD_ENABLED: True,
+            CONF_DEV_FORWARD_HOST: "dev.example.com",
+            CONF_DEV_FORWARD_PORT: 47524,
+            CONF_DEV_FORWARD_UNTIL: future,
+        },
+        state=ConfigEntryState.LOADED,
+    )
+    config_entry.add_to_hass(hass)
+    assert await async_setup_entry(hass, config_entry)
+    try:
+        rd = config_entry.runtime_data
+        assert rd.mirror is not None
+        assert rd.dev_mirror is not None
+
+        async_fire_time_changed(hass, dt_util.utcnow() + timedelta(hours=24))
+        await hass.async_block_till_done()
+
+        assert rd.dev_mirror is None
+        assert rd.mirror is not None
+        assert config_entry.options.get(CONF_DEV_FORWARD_ENABLED) is False
+        assert config_entry.options.get(CONF_DEV_FORWARD_UNTIL) is None
+
+        await rd.server._call_forward_cb(b"\x00" * 120)
+        await rd.server._call_forward_v8_cb(b"{v1 " + b"\x00" * 120)
+        assert not rd.mirror._queue.empty()
+    finally:
+        await async_unload_entry(hass, config_entry)
+        AsekoFrameDumper.reset()

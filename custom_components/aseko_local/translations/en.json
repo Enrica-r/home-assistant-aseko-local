@@ -6,7 +6,8 @@
     },
     "error": {
       "cannot_connect": "Connection failed",
-      "unknown": "Unexpected error"
+      "unknown": "Unexpected error",
+      "dev_forward_host_missing": "Please provide a host for the dev-server forwarding."
     },
     "step": {
       "user": {
@@ -29,8 +30,13 @@
       "options_init": {
         "data": {
           "forwarder_enabled": "Enable forwarding",
-          "forwarder_host": "Forward to host"
-        }
+          "forwarder_host": "Forward to host",
+          "log_dumper_enabled": "Enable log dumper",
+          "dev_forward_enabled": "Send data to dev server",
+          "dev_forward_host": "Dev server host",
+          "dev_forward_port": "Dev server port"
+        },
+        "description": "The log dumper writes one file per device and deletes it automatically 2 days after the last write. Data delivery to the dev server stops automatically after 24 hours. Please switch both off again after analysing."
       }
     }
   },

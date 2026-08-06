@@ -6,7 +6,8 @@
     },
     "error": {
       "cannot_connect": "Připojení se nezdařilo",
-      "unknown": "Neočekávaná chyba"
+      "unknown": "Neočekávaná chyba",
+      "dev_forward_host_missing": "Zadejte prosím hostitele pro přeposílání na vývojový server."
     },
     "step": {
       "user": {
@@ -29,8 +30,13 @@
       "options_init": {
         "data": {
           "forwarder_enabled": "Povolit přeposílání",
-          "forwarder_host": "Cílová adresa"
-        }
+          "forwarder_host": "Cílová adresa",
+          "log_dumper_enabled": "Povolit zápis protokolu",
+          "dev_forward_enabled": "Odeslat data na vývojový server",
+          "dev_forward_host": "Hostitel vývojového serveru",
+          "dev_forward_port": "Port vývojového serveru"
+        },
+        "description": "Zapisovač protokolu vytvoří jeden soubor na zařízení a automaticky ho smaže 2 dny po posledním zápisu. Odesílání dat na vývojový server se automaticky zastaví po 24 hodinách. Po analýze prosím obojí znovu vypněte."
       }
     }
   },

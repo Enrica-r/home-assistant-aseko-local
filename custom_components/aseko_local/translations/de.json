@@ -6,7 +6,8 @@
     },
     "error": {
       "cannot_connect": "Verbindung fehlgeschlagen",
-      "unknown": "Unerwarteter Fehler"
+      "unknown": "Unerwarteter Fehler",
+      "dev_forward_host_missing": "Für die Dev-Server-Weiterleitung bitte einen Host angeben."
     },
     "step": {
       "user": {
@@ -29,8 +30,13 @@
       "options_init": {
         "data": {
           "forwarder_enabled": "Cloud-Weiterleitung aktivieren",
-          "forwarder_host": "Cloud-Host"
-        }
+          "forwarder_host": "Cloud-Host",
+          "log_dumper_enabled": "Log Dumper aktivieren",
+          "dev_forward_enabled": "Daten an Dev-Server senden",
+          "dev_forward_host": "Dev-Server-Host",
+          "dev_forward_port": "Dev-Server-Port"
+        },
+        "description": "Der Log Dumper schreibt pro Gerät eine Datei und löscht sie automatisch 2 Tage nach dem letzten Schreibzugriff. Die Datenlieferung an den Dev-Server stoppt nach 24 Stunden automatisch. Bitte nach der Analyse beides wieder abschalten."
       }
     }
   },

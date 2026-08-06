@@ -9,9 +9,15 @@ from homeassistant.data_entry_flow import FlowResultType
 
 from custom_components.aseko_local.aseko_server import ServerConnectionError
 from custom_components.aseko_local.const import (
+    CONF_DEV_FORWARD_ENABLED,
+    CONF_DEV_FORWARD_HOST,
+    CONF_DEV_FORWARD_PORT,
+    CONF_DEV_FORWARD_UNTIL,
     CONF_FORWARDER_ENABLED,
     CONF_FORWARDER_HOST,
+    CONF_LOG_DUMPER_ENABLED,
     DEFAULT_FORWARDER_HOST,
+    DEFAULT_DEV_FORWARD_PORT,
     DOMAIN,
 )
 
@@ -122,4 +128,109 @@ async def test_options_flow(
         await hass.async_block_till_done()
 
     assert result2["type"] == FlowResultType.CREATE_ENTRY
-    assert result2["data"] == options
+    assert result2["data"] == {
+        CONF_FORWARDER_ENABLED: True,
+        CONF_FORWARDER_HOST: DEFAULT_FORWARDER_HOST,
+        CONF_LOG_DUMPER_ENABLED: False,
+        CONF_DEV_FORWARD_ENABLED: False,
+        CONF_DEV_FORWARD_HOST: "",
+        CONF_DEV_FORWARD_PORT: DEFAULT_DEV_FORWARD_PORT,
+    }
+
+
+async def test_options_flow_saves_dumper_and_dev_forward(
+    hass, mock_config_entry, mock_setup_entry: AsyncMock
+) -> None:
+    """Saving the options persists the dumper checkbox and the dev-forward
+    settings, including the 24 h expiry timestamp for the dev-forward."""
+    if callable(getattr(mock_config_entry, "__await__", None)):
+        mock_config_entry = await mock_config_entry
+
+    result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "options_init"
+
+    options = {
+        CONF_LOG_DUMPER_ENABLED: True,
+        CONF_DEV_FORWARD_ENABLED: True,
+        CONF_DEV_FORWARD_HOST: "dev.example.com",
+        CONF_DEV_FORWARD_PORT: 47524,
+    }
+
+    with patch(
+        "custom_components.aseko_local.aseko_server.AsekoDeviceServer.remove_all"
+    ):
+        result2 = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            options,
+        )
+        await hass.async_block_till_done()
+
+    assert result2["type"] == FlowResultType.CREATE_ENTRY
+    data = result2["data"]
+    assert data[CONF_LOG_DUMPER_ENABLED] is True
+    assert data[CONF_DEV_FORWARD_ENABLED] is True
+    assert data[CONF_DEV_FORWARD_HOST] == "dev.example.com"
+    assert data[CONF_DEV_FORWARD_PORT] == 47524
+    # A non-empty ISO expiry must be stored when dev-forwarding is activated.
+    assert isinstance(data[CONF_DEV_FORWARD_UNTIL], str)
+    assert data[CONF_DEV_FORWARD_UNTIL]
+
+
+async def test_options_flow_requires_dev_forward_host(
+    hass, mock_config_entry, mock_setup_entry: AsyncMock
+) -> None:
+    """Enabling dev-forward without a host must show a validation error."""
+    if callable(getattr(mock_config_entry, "__await__", None)):
+        mock_config_entry = await mock_config_entry
+
+    result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
+    options = {
+        CONF_DEV_FORWARD_ENABLED: True,
+        CONF_DEV_FORWARD_HOST: "",
+    }
+
+    result2 = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        options,
+    )
+    assert result2["type"] == FlowResultType.FORM
+    assert result2["errors"] == {"base": "dev_forward_host_missing"}
+
+
+async def test_options_flow_clears_until_when_dev_forward_disabled(
+    hass, mock_config_entry, mock_setup_entry: AsyncMock
+) -> None:
+    """Unchecking dev-forward removes the stored expiry timestamp."""
+    if callable(getattr(mock_config_entry, "__await__", None)):
+        mock_config_entry = await mock_config_entry
+
+    # First enable dev-forward so an expiry timestamp is stored.
+    result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
+    with patch(
+        "custom_components.aseko_local.aseko_server.AsekoDeviceServer.remove_all"
+    ):
+        await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            {
+                CONF_DEV_FORWARD_ENABLED: True,
+                CONF_DEV_FORWARD_HOST: "dev.example.com",
+                CONF_DEV_FORWARD_PORT: DEFAULT_DEV_FORWARD_PORT,
+            },
+        )
+        await hass.async_block_till_done()
+    assert mock_config_entry.options.get(CONF_DEV_FORWARD_UNTIL)
+
+    # Now disable it again — the expiry must be dropped.
+    result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
+    with patch(
+        "custom_components.aseko_local.aseko_server.AsekoDeviceServer.remove_all"
+    ):
+        result2 = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            {CONF_DEV_FORWARD_ENABLED: False},
+        )
+        await hass.async_block_till_done()
+
+    assert result2["type"] == FlowResultType.CREATE_ENTRY
+    assert CONF_DEV_FORWARD_UNTIL not in result2["data"]

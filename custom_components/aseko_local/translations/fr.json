@@ -6,7 +6,8 @@
         },
         "error": {
             "cannot_connect": "Échec de la connexion",
-            "unknown": "Erreur inattendue"
+            "unknown": "Erreur inattendue",
+            "dev_forward_host_missing": "Veuillez fournir un hôte pour le transfert vers le serveur de développement."
         },
         "step": {
             "user": {
@@ -29,8 +30,13 @@
             "options_init": {
                 "data": {
                     "forwarder_enabled": "Activer la transmission",
-                    "forwarder_host": "Hôte de destination"
-                }
+                    "forwarder_host": "Hôte de destination",
+                    "log_dumper_enabled": "Activer l'enregistreur de logs",
+                    "dev_forward_enabled": "Envoyer les données au serveur de développement",
+                    "dev_forward_host": "Hôte du serveur de développement",
+                    "dev_forward_port": "Port du serveur de développement"
+                },
+                "description": "L'enregistreur de logs écrit un fichier par appareil et le supprime automatiquement 2 jours après la dernière écriture. La livraison des données au serveur de développement s'arrête automatiquement après 24 heures. Veuillez désactiver les deux après l'analyse."
             }
         }
     },
