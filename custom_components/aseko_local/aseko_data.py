@@ -3,7 +3,7 @@
 This module defines the **protocol-agnostic target schema** (``AsekoDevice``)
 that the entity layer (sensors, binary sensors, buttons, …) consumes.  It
 also defines the device-type enum, the probe-type enum, the electrolyser
-direction enum, and the filtration-mode enum.
+direction enum, and the filtration-schedule enum.
 
 Decoder-specific byte-level knowledge (v7 ``byte[29]`` masks, v8 ``fncs:``
 capability codes, ``byte[37]`` routing constants, etc.) lives in
@@ -111,23 +111,6 @@ class AsekoFiltrationSchedule(Enum):
     NONSTOP_24H = "nonstop_24h"
     TIMER_PERIOD_1 = "timer_period_1"
     TIMER_PERIOD_1_AND_2 = "timer_period_1_and_2"
-
-
-class AsekoFiltrationMode(Enum):
-    """Enumeration of the 4 filtration schedule states.
-
-    Surfaced by the new `filtration_mode` sensor (Issue #133) and used
-    internally to override `filtration_pump_running` when the user has
-    manually switched the pump off on a HOME v7 device (firmware B).
-
-    Enum values map directly to the translation keys in
-    translations/{en,de,cs,fr}.json under entity.sensor.filtration_mode.state.
-    """
-
-    NONSTOP_24H = "nonstop_24h"
-    TIMER_PERIOD_1 = "timer_period_1"
-    TIMER_PERIOD_1_AND_2 = "timer_period_1_and_2"
-    OFF_MANUAL = "off_manual"
 
 
 # Canonical list of dosing-pump types that any Aseko device may carry.
@@ -282,33 +265,6 @@ class AsekoDevice:
     # Only the bit-flag firmware encodes it.  Left None on firmware A, where
     # bit 0x04 belongs to the transitional edit states, and on NET.
     service_menu_open: bool | None = None
-
-    # Filtration mode — 4-state enum (Issue #133).
-    # Set for every device type in FILTRATION_TYPES = {SALT, HOME, OXY, PROFI,
-    # SALT_NET}. NET is excluded — no filtration output (see Issue #66).
-    #
-    # HOME v7 devices encode the 4-state mode directly in byte[37] with two
-    # firmware variants:
-    #   Firmware A (serial 110128063, byte 4 = 0x02): high nibble 0x4 / 0x5
-    #     0x43 → NONSTOP_24H
-    #     0x53 → TIMER_PERIOD_1_AND_2 (cannot distinguish P1 vs P1&P2)
-    #     0x47 / 0x57 → leave as None (transitional edit state)
-    #   Firmware B (serial 110169464, byte 4 = 0x03): high nibble 0x0 / 0x1 / 0x3
-    #     0x01 → NONSTOP_24H
-    #     0x11 → TIMER_PERIOD_1
-    #     0x31 → TIMER_PERIOD_1_AND_2
-    #     0x35 → OFF_MANUAL
-    #
-    # SALT / OXY / PROFI do not put a filtration mode flag in byte[37]
-    # (SALT: algicide/flocculant routing + dosage encoding; OXY: pump-
-    # presence bitmap; PROFI: no live frame captured). For those types
-    # the mode is derived from the schedule bytes 56-63 and the period-2
-    # enable bit (byte 37 bit 0x20, already covered by FILTRATION_PERIOD2_FLAG_TYPES).
-    # SALT_NET (v8) has no equivalent byte[37] mode flag; the decoder
-    # derives the mode from the schedule bytes and the period-2 enable
-    # bit. This guarantees that a single `filtration_mode` sensor shows
-    # the same 4 states on every filtration-capable device.
-    filtration_mode: AsekoFiltrationMode | None = None
 
     # Filtration hours per day (best guess) — reqs[7] on v8 SALT NET
     # (NET v8 also reports it at the same position, but typically 24 h).

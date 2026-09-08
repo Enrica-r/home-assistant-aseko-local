@@ -5,7 +5,6 @@ import pytest
 from custom_components.aseko_local.aseko_data import (
     AsekoDeviceType,
     AsekoElectrolyzerDirection,
-    AsekoFiltrationMode,
     AsekoProbeType,
 )
 from custom_components.aseko_local.aseko_decoder_v8 import AsekoV8Decoder
@@ -935,48 +934,6 @@ def test_net_v8_no_flow_and_dose_exceeded_bits_are_independent():
     device = AsekoV8Decoder.decode(both_frame)
     assert device.alarm_no_flow_to_probes is True
     assert device.alarm_orp_too_many_doses is True
-
-
-# --- Filtration mode derivation for SALT NET v8 (Issue #131 + #133) ---
-
-
-def test_salt_net_filtration_mode_off_f2(device_salt_net_f2):
-    """F2: outs[2] = 0 (filtration off) + reqs[7] = 20 → OFF_MANUAL.
-
-    The v8 frame does not carry a byte[37]-style mode flag, so the
-    decoder derives the mode from outs[2] and filtration_hours_per_day.
-    See salt_net_v8_device_analysis.md §6.2 and Issue #133.
-    """
-    assert device_salt_net_f2.filtration_mode == AsekoFiltrationMode.OFF_MANUAL
-
-
-def test_salt_net_filtration_mode_timer_f3(device_salt_net_f3):
-    """F3: outs[2] = 2 (filtration on) + reqs[7] = 20 (< 24) → TIMER_PERIOD_1.
-
-    The SALT NET v8 firmware does not expose a second filtration period
-    in the decoded sections, so the decoder cannot distinguish
-    TIMER_PERIOD_1 from TIMER_PERIOD_1_AND_2 — this matches the old
-    HOME v7 firmware A behaviour (see issue-133 §6.2 "Old encoding").
-    """
-    assert device_salt_net_f3.filtration_mode == AsekoFiltrationMode.TIMER_PERIOD_1
-
-
-def test_salt_net_filtration_mode_timer_f1(device_salt_net_f1):
-    """F1: outs[2] = 2 (filtration on) + reqs[7] = 20 (< 24) → TIMER_PERIOD_1.
-
-    F1 was captured during mirovra's "filtration on, no dosing" scenario.
-    The schedule is 20 h/day so this is TIMER_PERIOD_1, not NONSTOP_24H.
-    """
-    assert device_salt_net_f1.filtration_mode == AsekoFiltrationMode.TIMER_PERIOD_1
-
-
-def test_net_v8_filtration_mode_is_none(device_sep):
-    """NET v8 is not in FILTRATION_TYPES — filtration_mode stays None.
-
-    NET has no filtration output (Issue #66). The decoder must not
-    synthesize a mode for it.
-    """
-    assert device_sep.filtration_mode is None
 
 
 # --- Regression guards for NET v8 ---

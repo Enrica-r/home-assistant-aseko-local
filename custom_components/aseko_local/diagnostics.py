@@ -158,7 +158,7 @@ _V8_AREQS_LABELS: dict[int, str] = {
 
 _V8_REQS_LABELS: dict[int, str] = {
     5: "unknown (always 8 on SALT NET, 0 on NET)",
-    7: "filtration_hours_per_day (unconfirmed; SALT NET=20, NET=24)",
+    7: "filtration hours per day (unconfirmed; SALT NET=20, NET=24)",
 }
 
 _V8_FLAGS_LABELS: dict[int, str] = {

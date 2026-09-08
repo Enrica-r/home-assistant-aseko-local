@@ -10,7 +10,6 @@ from .aseko_data import (
     AsekoDevice,
     AsekoDeviceType,
     AsekoElectrolyzerDirection,
-    AsekoFiltrationMode,
     AsekoProbeType,
 )
 from .aseko_v8_helpers import (
@@ -373,29 +372,6 @@ class AsekoV8Decoder:
         if is_salt_net:
             filtration_hours_per_day = _get(reqs, 7)
 
-        # Filtration mode for SALT NET v8 (Issue #131 §6.2, Issue #133).
-        # The v8 frame does NOT carry a byte[37]-style mode flag on SALT
-        # NET, so the mode is derived from the available signals:
-        #   - outs[2] = 0   → filtration pump off  → OFF_MANUAL
-        #   - outs[2] != 0  + filtration_hours_per_day == 24 → NONSTOP_24H
-        #   - outs[2] != 0  + filtration_hours_per_day < 24  → TIMER_PERIOD_1
-        #     (SALT NET firmware does not expose a second filtration
-        #      period in the decoded sections, so we cannot distinguish
-        #      TIMER_PERIOD_1 from TIMER_PERIOD_1_AND_2 without a
-        #      dedicated frame; this matches the OLD HOME v7 firmware A
-        #      behaviour which also collapses P1 and P1&P2 into one
-        #      "timer" state — see issue-133 §6.2 "Old encoding".)
-        #   - filtration_hours_per_day is None → unknown, leave as None.
-        filtration_mode: AsekoFiltrationMode | None = None
-        if is_salt_net and filtration_pump_running is not None:
-            if not filtration_pump_running:
-                filtration_mode = AsekoFiltrationMode.OFF_MANUAL
-            elif filtration_hours_per_day == 24:
-                filtration_mode = AsekoFiltrationMode.NONSTOP_24H
-            elif filtration_hours_per_day is not None:
-                filtration_mode = AsekoFiltrationMode.TIMER_PERIOD_1
-            # else: leave as None (schedule not yet known)
-
         # --- Probe configuration ---
         # Derive which probes are installed from which ains slots report real values.
         configuration: set[AsekoProbeType] = set()
@@ -446,7 +422,6 @@ class AsekoV8Decoder:
             delay_after_startup=delay_after_startup,
             delay_after_dose=delay_after_dose,
             filtration_hours_per_day=filtration_hours_per_day,
-            filtration_mode=filtration_mode,
             alarm_no_flow_to_probes=alarm_no_flow_to_probes,
             alarm_orp_too_many_doses=alarm_orp_too_many_doses,
         )

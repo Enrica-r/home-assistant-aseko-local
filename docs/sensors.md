@@ -68,7 +68,7 @@ fields. Anything that depends on those bytes is marked ❌ for v8.
 | Filtration 1 stop | `filtration_1_stop` | ✅ | ❌ | V7 only. |
 | Filtration 2 start | `filtration_2_start` | ✅ | ❌ | V7 only — bytes 60-61. |
 | Filtration 2 stop | `filtration_2_stop` | ✅ | ❌ | V7 only. |
-| Filtration schedule | `filtration_schedule` | ✅ | ❌ | V7 only — byte[37] bits 0x10/0x20 (Issue #133, #135). V8 has no byte[37]-style schedule bits; the v8 decoder derives `filtration_mode` internally but does not surface it as an entity. |
+| Filtration schedule | `filtration_schedule` | ✅ | ❌ | V7 only — byte[37] bits 0x10/0x20 (Issue #133, #135). V8 has no byte[37]-style schedule bits; no schedule sensor is exposed for v8 devices. |
 | Pool volume | `pool_volume` | ✅ | ✅ | V7: bytes 92-93. V8: `areqs[14]`. |
 | Delay after startup | `delay_after_startup` | ✅ | ✅ | V7: bytes 74-75 (seconds). V8: `areqs[17] × 60` seconds — NET uses 2 min, SALT_NET uses 5 min. |
 | Delay after dose | `delay_after_dose` | ✅ | ✅ | V7: bytes 107-108. V8: `areqs[18] × 60` seconds. |

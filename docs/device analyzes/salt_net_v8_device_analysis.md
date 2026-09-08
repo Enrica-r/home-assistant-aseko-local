@@ -239,7 +239,7 @@ electrolyzer power**, but mirovra's Jul 16 data proved the mapping was wrong:
 | index | F1 | F2 | F3 | Hypothesis | `AsekoDevice` field | Status |
 |---|---|---|---|---|---|---|
 | `reqs[5]` | 8 | 8 | 8 | unknown | unknown | ❓ **always 8** — was 0 on NET, possibly a SALT-NET-specific feature flag |
-| `reqs[7]` | 20 | 20 | 20 | **filtration hours per day** | `filtration_hours_per_day` | 🟡 20 h vs. NET's 24 h — plausible, unconfirmed by user. **Also drives the `filtration_mode` enum (Issue #133):** when `outs[2] != 0` (filtration on) and `reqs[7] < 24`, the mode is `TIMER_PERIOD_1`; when `reqs[7] == 24` the mode is `NONSTOP_24H`; when `outs[2] == 0` the mode is `OFF_MANUAL`. See §6.2 and the new `AsekoFiltrationMode` enum in [`aseko_data.py`](../../custom_components/aseko_local/aseko_data.py). |
+| `reqs[7]` | 20 | 20 | 20 | **filtration hours per day** | `filtration_hours_per_day` | 🟡 20 h vs. NET's 24 h — plausible but unconfirmed. Per the Aseko SALT NET manual the unit may run continuously (24 h), on a single user-defined time period, or for a temperature-derived `water_temperature / 2 + 2` hours/day. The exact meaning of this wire value is still open (Q4). |
 | `reqs[9]` | 2 | 2 | 2 | unknown | unknown | ❓ constant 2 (NET had 1) |
 | `reqs[33–34]` | 10 | 10 | 10 | unknown | unknown | ❓ constant 10, identical to NET |
 
@@ -415,45 +415,28 @@ encountered header type will help debug this if it ever happens.
 
 ---
 
-## 12. Filtration mode (Issue #133 cross-reference)
+## 12. Filtration schedule (Issue #133 cross-reference)
 
 The SALT NET v8 frame does **not** carry a `byte[37]`-style filtration
-mode flag (unlike HOME v7 firmware A/B), so the v8 decoder derives the
-`AsekoFiltrationMode` enum from the available signals:
+schedule flag (unlike HOME v7 firmware A/B). The v8 firmware also does
+not transmit the schedule bytes that v7 firmware exposes at
+`byte[56..63]`. The v8 decoder therefore cannot derive an
+`AsekoFiltrationSchedule` value from the wire, and the
+`filtration_schedule` field on SALT NET devices stays `None` — the same
+sensor entity that surfaces the schedule on v7 is therefore not created
+for v8 (see [`docs/sensors.md`](../sensors.md)).
 
-| SALT NET state | Decoder rule | Resulting mode |
-|---|---|---|
-| Filtration pump off (`outs[2] = 0`) | user switched pump off manually | `OFF_MANUAL` |
-| Filtration pump on (`outs[2] != 0`) + `reqs[7] == 24` | schedule is 24 h/day | `NONSTOP_24H` |
-| Filtration pump on (`outs[2] != 0`) + `reqs[7] < 24` | schedule is < 24 h/day | `TIMER_PERIOD_1` |
-| `reqs[7]` not present | unknown, leave as `None` | `None` |
+Per the Aseko SALT NET manual the unit can run:
 
-This matches the **HOME v7 firmware A behaviour** (Issue #133 §6.2 "Old
-encoding") which also collapses P1 and P1&P2 into a single "timer" state.
-The SALT NET v8 firmware does not expose a second filtration period in
-the decoded sections, so we cannot distinguish `TIMER_PERIOD_1` from
-`TIMER_PERIOD_1_AND_2` without a frame that includes the second period
-(which we have not yet captured for SALT NET v8). The same enum and
-sensor (`filtration_mode`) are used for both v7 and v8 devices — the
-binary sensor in [`binary_sensor.py`](../../custom_components/aseko_local/binary_sensor.py)
-is therefore protocol-agnostic.
+* continuously 24 h/day,
+* on a single user-defined time period, or
+* on a temperature-derived `water_temperature / 2 + 2` hours/day.
 
-For mirovra's SALT NET device, `reqs[7] = 20` and the pump is configured
-to run on a daily schedule (not 24 h nonstop), so all three known frames
-decode as follows:
-
-| Frame | `outs[2]` | `reqs[7]` | `filtration_mode` |
-|---|---|---|---|
-| F1 (filtration on) | 2 | 20 | `TIMER_PERIOD_1` |
-| F2 (filtration off, no flow) | 0 | 20 | `OFF_MANUAL` |
-| F3 (filtration on, algicide on??) | 2 | 20 | `TIMER_PERIOD_1` |
-
-The `AsekoFiltrationMode` enum and the `filtration_mode` field are the
-same as the v7 HOME branch uses (Issue #133), so the SALT NET and HOME v7
-work shares a single entity, a single translation key, and a single sensor
-implementation. This is the architectural goal Issue #133 was designed
-for: a single 4-state `filtration_mode` sensor visible on every
-filtration-capable device (SALT, HOME, OXY, PROFI, SALT_NET).
+`reqs[7]` is the closest candidate in the captured frames for this
+information (always 20 h on mirovra's SALT NET vs. 24 h on NET v8), but
+the exact mapping is still open (Q4). We expose the raw value through
+`AsekoDevice.filtration_hours_per_day` so it is visible in diagnostics
+without committing to an interpretation that is not yet confirmed.
 
 ---
 
